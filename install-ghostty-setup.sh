@@ -1,4 +1,3 @@
-cat >~/install-ghostty-setup.sh <<'EOF'
 #!/bin/bash
 # ================================================
 # Ghostty + Neovim + Starship + eza - Interactive Setup
@@ -186,10 +185,3 @@ echo "3. Open Neovim: nvim"
 echo "4. Inside Neovim run: :Lazy sync"
 echo ""
 echo "Enjoy your new setup!"
-EOF
-
-chmod +x ~/install-ghostty-setup.sh
-
-echo ""
-echo "Script created successfully!"
-echo "Run it with:"
