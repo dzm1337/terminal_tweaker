@@ -1,12 +1,11 @@
 # terminal_tweaker 🛠️
 
-Just a collection of scripts to automate the setup of a high-performance terminal and a streamlined Python environment. No fluff, just speed.
-
+Just a collection of scripts to automate the setup of a high-performance terminal and a streamlined Python environment.
 ## Overview 🚀
 
-The goal of **terminal_tweaker** is to ditch heavy legacy tools for fast, modern alternatives written in Rust and Zig. It focuses on:
+The goal of **terminal_tweaker** 🍓​
 1. A GPU-accelerated terminal interface.
-2. A Python workflow powered exclusively by Ruff for instant fixes and formatting.
+2. A Python workflow powered exclusively by Ruff for instant fixes and formatting flake8.
 
 ---
 
@@ -38,7 +37,7 @@ Shows everything, including hidden config files.
 
 ---
 
-## 2. Python Development (setup_ruff_fix.sh) 🐍
+## 2. Flake8 formatter (setup_ruff_fix.sh) 🐍
 
 This module configures Neovim (LazyVim) to use **Ruff** as the only engine for linting and formatting. I removed mypy and other slow tools to keep things snappy.
 
@@ -48,7 +47,7 @@ This module configures Neovim (LazyVim) to use **Ruff** as the only engine for l
 - **Ruff Format**: Enforces a consistent 79-character line limit.
 
 ### Keymap ⌨️
-- **Ctrl + S**: Saves the file and runs the Ruff fix/format pipeline immediately.
+- **Ctrl + S**: Saves the file and runs the Ruff fix/format for the flake8 pipeline immediately.
 
 ### Technical Configuration (ruff.toml)
 A global config is created at `~/.config/ruff/ruff.toml`:
@@ -61,7 +60,16 @@ A global config is created at `~/.config/ruff/ruff.toml`:
 ## Installation 🔧
 
 1. **Fire up the terminal setup:** `bash ~/terminal_setup.sh`
-
 2. **Run the Ruff engine setup:** `bash ~/setup_ruff_fix.sh`
+3. **Restart and go:** Restart your terminal and open Neovim. Check `:Mason` to make sure `ruff` is active.
 
-3. **Restart and go:** Restart your terminal and open Neovim. Check `:Mason` to make sure `ruff` is active. Done. ✅
+---
+
+## References & Tools 🔗
+
+- **Ghostty**: [https://ghostty.org/](https://ghostty.org/)
+- **Ruff**: [https://astral.sh/ruff](https://astral.sh/ruff)
+- **Starship**: [https://starship.rs/](https://starship.rs/)
+- **eza**: [https://eza.rocks/](https://eza.rocks/)
+- **LazyVim**: [https://www.lazyvim.org/](https://www.lazyvim.org/)
+- **Neovim**: [https://neovim.io/](https://neovim.io/)
