@@ -4,20 +4,20 @@ set -euo pipefail
 
 read -p "Install LazyVim starter? (y/n): " install_lazy
 if [[ "$install_lazy" =~ ^[Yy]$ ]]; then
-   mv ~/.config/nvim ~/.config/nvim.bak 2>/dev/null || true
-   mv ~/.local/share/nvim ~/.local/share/nvim.bak 2>/dev/null || true
-   git clone https://github.com/LazyVim/starter ~/.config/nvim
-   rm -rf ~/.config/nvim/.git
+   mv "$HOME/.config/nvim" "$HOME/.config/nvim.bak" 2>/dev/null || true
+   mv "$HOME/.local/share/nvim" "$HOME/.local/share/nvim.bak" 2>/dev/null || true
+   git clone https://github.com/LazyVim/starter "$HOME/.config/nvim"
+   rm -rf "$HOME/.config/nvim/.git"
 fi
 
-mkdir -p ~/.local/bin
-curl -LsSf https://github.com/astral-sh/ruff/releases/latest/download/ruff-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
-chmod +x ~/.local/bin/ruff
+mkdir -p "$HOME/.local/bin"
+curl -LsSf https://github.com/astral-sh/ruff/releases/latest/download/ruff-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C "$HOME/.local/bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
+chmod +x "$HOME/.local/bin/ruff"
 
-mkdir -p ~/.config/nvim/lua/plugins
-mkdir -p ~/.config/ruff
+mkdir -p "$HOME/.config/nvim/lua/plugins"
+mkdir -p "$HOME/.config/ruff"
 
-cat >~/.config/nvim/lua/plugins/lsp.lua <<'EOF'
+cat >"$HOME/.config/nvim/lua/plugins/lsp.lua" <<'EOF'
 return {
   {
     "neovim/nvim-lspconfig",
@@ -38,7 +38,7 @@ return {
 }
 EOF
 
-cat >~/.config/nvim/lua/plugins/conform_python.lua <<'EOF'
+cat >"$HOME/.config/nvim/lua/plugins/conform_python.lua" <<'EOF'
 return {
   {
     "stevearc/conform.nvim",
@@ -55,7 +55,7 @@ return {
 }
 EOF
 
-cat >~".config/nvim/lua/plugins/keymaps_ruff.lua" <<'EOF'
+cat >"$HOME/.config/nvim/lua/plugins/keymaps_ruff.lua" <<'EOF'
 vim.keymap.set("n", "<C-s>", function()
   vim.cmd("w")
   require("conform").format({ async = true, lsp_fallback = true })
@@ -63,7 +63,7 @@ end, { desc = "Save + Fix with Ruff" })
 return {}
 EOF
 
-cat >~/.config/ruff/ruff.toml <<'EOF'
+cat >"$HOME/.config/ruff/ruff.toml" <<'EOF'
 line-length = 79
 target-version = "py310"
 
@@ -83,8 +83,7 @@ quote-style = "double"
 indent-style = "space"
 EOF
 
-rm -rf ~/.local/share/nvim/mason/packages/ruff 2>/dev/null || true
+rm -rf "$HOME/.local/share/nvim/mason/packages/ruff" 2>/dev/null || true
 nvim --headless -c "Lazy sync" -c "qa" 2>/dev/null || true
-echo "----------------------------------------------------"
-echo "LazyVim and Ruff manual setup completed successfully!"
-echo "----------------------------------------------------"
+
+echo "LazyVim and Ruff manual installation finished successfully."
