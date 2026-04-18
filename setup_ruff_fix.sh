@@ -2,19 +2,14 @@
 
 set -euo pipefail
 
-read -p "Install LazyVim starter configuration? (y/n): " install_lazy
+read -p "Install LazyVim starter? (y/n): " install_lazy
 if [[ "$install_lazy" =~ ^[Yy]$ ]]; then
-   echo "Installing LazyVim..."
    mv ~/.config/nvim ~/.config/nvim.bak 2>/dev/null || true
    mv ~/.local/share/nvim ~/.local/share/nvim.bak 2>/dev/null || true
-   mv ~/.local/state/nvim ~/.local/state/nvim.bak 2>/dev/null || true
-   mv ~/.cache/nvim ~/.cache/nvim.bak 2>/dev/null || true
-   
    git clone https://github.com/LazyVim/starter ~/.config/nvim
    rm -rf ~/.config/nvim/.git
 fi
 
-echo "Installing Ruff binary manually..."
 mkdir -p ~/.local/bin
 curl -LsSf https://github.com/astral-sh/ruff/releases/latest/download/ruff-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C ~/.local/bin --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
 chmod +x ~/.local/bin/ruff
@@ -60,15 +55,11 @@ return {
 }
 EOF
 
-cat >~/.config/nvim/lua/plugins/keymaps_ruff.lua <<'EOF'
+cat >~".config/nvim/lua/plugins/keymaps_ruff.lua" <<'EOF'
 vim.keymap.set("n", "<C-s>", function()
   vim.cmd("w")
-  require("conform").format({
-    async = true,
-    lsp_fallback = true,
-  })
+  require("conform").format({ async = true, lsp_fallback = true })
 end, { desc = "Save + Fix with Ruff" })
-
 return {}
 EOF
 
@@ -84,18 +75,16 @@ ignore = [
     "EM101",
     "E501",
     "UP015",
+    "I001",
 ]
 
 [format]
 quote-style = "double"
 indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "lf"
 EOF
 
 rm -rf ~/.local/share/nvim/mason/packages/ruff 2>/dev/null || true
 nvim --headless -c "Lazy sync" -c "qa" 2>/dev/null || true
-
 echo "----------------------------------------------------"
 echo "LazyVim and Ruff manual setup completed successfully!"
 echo "----------------------------------------------------"
