@@ -1,280 +1,272 @@
 #!/bin/bash
 # ================================================
-# Ghostty + Neovim + Starship + eza - Interactive Setup
+# Ghostty + Neovim + Starship + eza Setup
 # ================================================
+
+set -euo pipefail
+
+clear
+
+echo "=================================================="
+echo "   Ghostty + Neovim + Starship + eza Setup"
+echo "=================================================="
+echo
+
 # Detect OS
-# ====================== 1. Install Dependencies ======================#
-#
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  OS="macos"
+    OS="macos"
+    if [[ "$(uname -m)" == "arm64" ]]; then
+        ARCH="arm64"
+        BREW_PREFIX="/opt/homebrew"
+    else
+        ARCH="x86_64"
+        BREW_PREFIX="/usr/local"
+    fi
 else
-  OS="linux"
+    OS="linux"
 fi
+
+echo "→ System detected: $OS ($ARCH)"
+echo
+
+# Install Dependencies
+echo "→ Installing packages..."
 
 if [[ "$OS" == "macos" ]]; then
-  if [[ -x /opt/homebrew/bin/brew ]]; then
-    BREW_PREFIX="/opt/homebrew"
-  elif [[ -x /usr/local/bin/brew ]]; then
-    BREW_PREFIX="/usr/local"
-  else
-    echo "Homebrew não encontrado. Instale manualmente em https://brew.sh"
-    exit 1
-  fi
+    if ! command -v brew &> /dev/null; then
+        echo "❌ Homebrew not found. Install from https://brew.sh"
+        exit 1
+    fi
 
-  if ! grep -q "brew shellenv" ~/.zprofile 2>/dev/null; then
-    echo 'eval "$('"$BREW_PREFIX"'/bin/brew shellenv)"' >>~/.zprofile
-  fi
+    eval "$("$BREW_PREFIX"/bin/brew shellenv)"
+    brew update --quiet
 
-  eval "$("$BREW_PREFIX"/bin/brew shellenv)"
+    echo "→ Installing Starship (official binary)..."
+    curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
-  brew update
-  brew install neovim eza starship
-  brew install --cask font-jetbrains-mono-nerd-font
+    echo "→ Installing Nerd Font..."
+    brew install --cask font-jetbrains-mono-nerd-font
 
-  echo "Instalação no macOS concluída!"
+    echo "→ Installing eza..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --quiet 2>/dev/null || true
+    source "$HOME/.cargo/env" 2>/dev/null || true
+    if command -v cargo &> /dev/null; then
+        cargo install eza --quiet || brew install eza
+    else
+        brew install eza
+    fi
+
+    echo "→ Installing Neovim..."
+    cd /tmp
+    if [[ "$ARCH" == "arm64" ]]; then
+        curl -L -o nvim.tar.gz https://github.com/neovim/neovim/releases/download/stable/nvim-macos-arm64.tar.gz
+    else
+        curl -L -o nvim.tar.gz https://github.com/neovim/neovim/releases/download/stable/nvim-macos-x86_64.tar.gz
+    fi
+    tar xzf nvim.tar.gz
+    sudo rm -rf /usr/local/bin/nvim /usr/local/share/nvim 2>/dev/null || true
+    sudo mv nvim-macos-*/bin/nvim /usr/local/bin/nvim 2>/dev/null || true
+    sudo mv nvim-macos-*/share/nvim /usr/local/share/nvim 2>/dev/null || true
+    rm -rf nvim-macos-* nvim.tar.gz
+
 else
-  # Linux (mantido como estava)
-  sudo apt update
-  sudo apt install -y neovim curl git zsh
+    # Ubuntu/Debian
+    sudo apt update
+    sudo apt install -y neovim curl git zsh fonts-powerline
 
-  curl -sS https://starship.rs/install.sh | sh -s -- --yes
+    curl -sS https://starship.rs/install.sh | sh -s -- --yes
 
-  echo "Installing eza..."
-  sudo mkdir -p /etc/apt/keyrings
-  wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/eza.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/eza.gpg] http://deb.gierens.de stable main" | sudo tee /etc/apt/sources.list.d/eza.list
-  sudo apt update
-  sudo apt install -y eza
+    echo "→ Installing eza..."
+    sudo mkdir -p /etc/apt/keyrings
+    wget -qO- https://raw.githubusercontent.com/eza-community/eza/main/deb.asc | sudo gpg --dearmor -o /etc/apt/keyrings/eza.gpg 2>/dev/null || true
+    echo "deb [signed-by=/etc/apt/keyrings/eza.gpg] http://deb.gierens.de stable main" | \
+        sudo tee /etc/apt/sources.list.d/eza.list >/dev/null
+    sudo apt update
+    sudo apt install -y eza
 fi
 
-echo "Installing required programs..."
-
+# Nerd Font
+echo "→ Installing JetBrainsMono Nerd Font..."
 if [[ "$OS" == "macos" ]]; then
-  brew install neovim starship eza font-jetbrains-mono-nerd-font
+    echo "   → Already installed via Homebrew"
 else
-  sudo apt update
-  sudo apt install -y neovim curl git zsh
-  curl -sS https://starship.rs/install.sh | sh -s -- --yes
-  sudo apt install -y eza
+    mkdir -p ~/.local/share/fonts
+    cd /tmp
+    wget -q https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip
+    unzip -q JetBrainsMono.zip -d ~/.local/share/fonts/
+    fc-cache -fv
+    rm -f JetBrainsMono.zip
 fi
 
-# ====================== 2. Install Nerd Font ======================
-if [[ "$OS" == "linux" ]]; then
-  echo "Installing JetBrainsMono Nerd Font..."
-  mkdir -p ~/.local/share/fonts
-  cd /tmp
-  wget -q https://github.com/ryanoasis/nerd-fonts/releases/download/v3.2.1/JetBrainsMono.zip
-  unzip -q JetBrainsMono.zip -d ~/.local/share/fonts/
-  fc-cache -fv
-  rm JetBrainsMono.zip
+# Choose Shell
+echo
+echo "=========================================="
+echo "      CHOOSE YOUR SHELL"
+echo "=========================================="
+echo "1. Zsh (Recommended)"
+echo "2. Bash"
+echo
+read -p "Choose (1-2) [default: 1]: " shell_choice
+
+if [[ "${shell_choice:-1}" == "2" ]]; then
+    SHELL_TYPE="bash"
+    RC_FILE="$HOME/.bashrc"
+else
+    SHELL_TYPE="zsh"
+    RC_FILE="$HOME/.zshrc"
 fi
 
-# ====================== 3. Choose Ghostty Theme ======================
-echo ""
-echo "=========================================="
-echo "      AVAILABLE GHOSTTY THEMES"
-echo "=========================================="
-echo ""
-echo "1. TokyoNight"
-echo "2. Catppuccin Mocha"
-echo "3. Catppuccin Frappe"
-echo "4. Dracula"
-echo "5. Gruvbox Dark"
-echo "6. Nord"
-echo "7. OneDark"
-echo "8. RosePine"
-echo "9. KanagawaDragon"
-echo "10. EverforestDark"
-echo ""
+echo "→ Using: $SHELL_TYPE"
 
-read -p "Enter the number of the theme you want (1-10): " theme_choice
+# Ghostty Theme
+echo
+echo "=========================================="
+echo "      GHOSTTY THEMES"
+echo "=========================================="
+echo "1. Tokyo Night     2. Catppuccin Mocha"
+echo "3. Catppuccin Frappe 4. Dracula"
+echo "5. Gruvbox Dark    6. Nord"
+echo "7. One Dark        8. Rose Pine"
+echo "9. Kanagawa Dragon 10. Everforest"
+echo
+read -p "Choose theme (1-10) [default: 1]: " theme_choice
 
-case $theme_choice in
-1) theme="TokyoNight" ;;
-2) theme="CatppuccinMocha" ;;
-3) theme="CatppuccinFrappe" ;;
-4) theme="Dracula" ;;
-5) theme="GruvboxDark" ;;
-6) theme="Nord" ;;
-7) theme="OneDark" ;;
-8) theme="RosePine" ;;
-9) theme="KanagawaDragon" ;;
-10) theme="EverforestDark" ;;
-*) theme="TokyoNight" && echo "Invalid option. Using TokyoNight as default." ;;
+case "${theme_choice:-1}" in
+    1) theme="TokyoNight" ;;
+    2) theme="Catppuccin Mocha" ;;
+    3) theme="Catppuccin Frappe" ;;
+    4) theme="Dracula" ;;
+    5) theme="Gruvbox Dark" ;;
+    6) theme="Nord" ;;
+    7) theme="One Dark Two" ;;
+    8) theme="Rose Pine" ;;
+    9) theme="Kanagawa Dragon" ;;
+    10) theme="Everforest Dark Hard" ;;
+    *) theme="TokyoNight" ;;
 esac
 
-echo "Selected Ghostty theme: $theme"
+echo "→ Selected theme: $theme"
 
-# ====================== 4. Starship Setup ======================
-echo ""
-read -p "Do you want to install Starship prompt? (y/n): " install_starship
+# Starship Setup
+echo
+read -p "Install Starship? (y/n) [default: y]: " install_starship
+install_starship=${install_starship:-y}
 
 if [[ "$install_starship" =~ ^[Yy]$ ]]; then
-  echo "Starship will be installed."
-  starship_preset="default"
-  starship_preset_name="Default (no custom preset)"
+    echo
+    read -p "Do you want to install a custom preset for starship? (y/n) [default: y]: " apply_preset
+    apply_preset=${apply_preset:-y}
 
-  echo ""
-  read -p "Do you want to apply an official Starship preset? (y/n): " apply_preset
+    if [[ "$apply_preset" =~ ^[Yy]$ ]]; then
+        echo
+        echo "1. Nerd Font Symbols   2. No Nerd Fonts"
+        echo "3. Bracketed Segments  4. Plain Text"
+        echo "5. No Runtime Versions 6. No Empty Icons"
+        echo "7. Pure Prompt         8. Pastel Powerline"
+        echo "9. Tokyo Night         10. Gruvbox Rainbow"
+        echo "11. Jetpack            12. Catppuccin Powerline"
+        echo "13. Default"
+        echo
+        read -p "Choose preset (1-13) [default: 1]: " preset_choice
 
-  if [[ "$apply_preset" =~ ^[Yy]$ ]]; then
-    echo ""
-    echo "=========================================="
-    echo "      OFFICIAL STARSHIP PRESETS"
-    echo "=========================================="
-    echo ""
-    echo "1. Nerd Font Symbols"
-    echo "2. No Nerd Fonts"
-    echo "3. Bracketed Segments"
-    echo "4. Plain Text Symbols"
-    echo "5. No Runtime Versions"
-    echo "6. No Empty Icons"
-    echo "7. Pure Prompt"
-    echo "8. Pastel Powerline"
-    echo "9. Tokyo Night"
-    echo "10. Gruvbox Rainbow"
-    echo "11. Jetpack"
-    echo "12. Catppuccin Powerline"
-    echo "13. None - use Starship default"
-    echo ""
-
-    read -p "Choose preset (1-13): " preset_choice
-
-    case $preset_choice in
-    1)
-      starship_preset_name="Nerd Font Symbols"
-      preset_slug="nerd-font-symbols"
-      ;;
-    2)
-      starship_preset_name="No Nerd Fonts"
-      preset_slug="no-nerd-font"
-      ;;
-    3)
-      starship_preset_name="Bracketed Segments"
-      preset_slug="bracketed-segments"
-      ;;
-    4)
-      starship_preset_name="Plain Text Symbols"
-      preset_slug="plain-text-symbols"
-      ;;
-    5)
-      starship_preset_name="No Runtime Versions"
-      preset_slug="no-runtime-versions"
-      ;;
-    6)
-      starship_preset_name="No Empty Icons"
-      preset_slug="no-empty-icons"
-      ;;
-    7)
-      starship_preset_name="Pure Prompt"
-      preset_slug="pure"
-      ;;
-    8)
-      starship_preset_name="Pastel Powerline"
-      preset_slug="pastel-powerline"
-      ;;
-    9)
-      starship_preset_name="Tokyo Night"
-      preset_slug="tokyo-night"
-      ;;
-    10)
-      starship_preset_name="Gruvbox Rainbow"
-      preset_slug="gruvbox-rainbow"
-      ;;
-    11)
-      starship_preset_name="Jetpack"
-      preset_slug="jetpack"
-      ;;
-    12)
-      starship_preset_name="Catppuccin Powerline"
-      preset_slug="catppuccin-powerline"
-      ;;
-    13 | *)
-      starship_preset_name="Default (no custom preset)"
-      preset_slug=""
-      ;;
-    esac
-
-    echo "Selected preset: $starship_preset_name"
-  else
-    echo "No preset will be applied. Starship will use its built-in default."
-  fi
+        case "${preset_choice:-1}" in
+            1) preset_slug="nerd-font-symbols" ;;
+            2) preset_slug="no-nerd-font" ;;
+            3) preset_slug="bracketed-segments" ;;
+            4) preset_slug="plain-text-symbols" ;;
+            5) preset_slug="no-runtime-versions" ;;
+            6) preset_slug="no-empty-icons" ;;
+            7) preset_slug="pure-preset" ;;
+            8) preset_slug="pastel-powerline" ;;
+            9) preset_slug="tokyo-night" ;;
+            10) preset_slug="gruvbox-rainbow" ;;
+            11) preset_slug="jetpack" ;;
+            12) preset_slug="catppuccin-powerline" ;;
+            *) preset_slug="" ;;
+        esac
+    else
+        preset_slug=""
+    fi
 else
-  echo "Starship will not be installed."
-  starship_preset="none"
+    install_starship="n"
 fi
-# ====================== 5. Configure Ghostty ======================#
-echo "Configuring Ghostty..."
+
+# Configure Ghostty
+echo "→ Configuring Ghostty..."
 mkdir -p ~/.config/ghostty
 
-cat >~/.config/ghostty/config <<GHOSTTY
-theme=$theme
+cat > ~/.config/ghostty/config << GHOSTTY
+theme = $theme
 background-opacity = 1.0
-
 font-family = "JetBrainsMono Nerd Font"
 font-size = 15
 font-thicken = true
-
 cursor-style = block
 cursor-style-blink = false
-
 confirm-close-surface = false
 mouse-hide-while-typing = true
 GHOSTTY
 
-# ====================== 6. Configure Starship (if chosen) ======================
+# Configure Starship
 if [[ "$install_starship" =~ ^[Yy]$ ]]; then
-  mkdir -p ~/.config
+    echo "→ Configuring Starship..."
+    mkdir -p ~/.config
 
-  if [[ -n "${preset_slug:-}" && "$preset_slug" != "" ]]; then
-    echo "Applying official Starship preset: $starship_preset_name"
-    starship preset "$preset_slug" -o ~/.config/starship.toml
-    starship_preset="preset-$preset_slug"
-  else
-    echo "Starship configured with default settings (no custom preset applied)."
-    rm -f ~/.config/starship.toml 2>/dev/null || true
-    starship_preset="default"
-  fi
+    if [[ -n "${preset_slug:-}" ]]; then
+        starship preset "$preset_slug" -o ~/.config/starship.toml
+        echo "   → Preset applied successfully!"
+    else
+        cat > ~/.config/starship.toml << 'STARSHIP'
+format = """$directory$git_branch$git_status$python$nodejs$cmd_duration$line_break$character"""
+[directory]
+truncation_length = 3
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[✘](bold red)"
+STARSHIP
+        echo "   → Using recommended default configuration."
+    fi
 fi
 
-# ====================== 7. Configure zsh ======================
-echo "Configuring zsh..."
-
-cat >>~/.zshrc <<'ZSHRC'
-
-# Starship (if installed)
+# Configure Shell
+echo "→ Configuring $SHELL_TYPE..."
+cat >> "$RC_FILE" << EOF
+# Starship
 if command -v starship &> /dev/null; then
-    eval "$(starship init zsh)"
+    eval "\$(starship init $SHELL_TYPE)"
 fi
 
-# eza - Full configuration
+# eza aliases
 alias ls='eza --icons --group-directories-first'
 alias ll='eza -lh --icons --group-directories-first --git'
 alias lt='eza --tree --level=2 --icons --git'
 alias la='eza -lah --icons --group-directories-first --git'
-ZSHRC
+EOF
 
-# ====================== 8. Install LazyVim ======================
-echo "Installing Neovim + LazyVim..."
-rm -rf ~/.config/nvim
-git clone https://github.com/LazyVim/starter ~/.config/nvim
+# LazyVim
+echo "→ Installing LazyVim for Neovim..."
+rm -rf ~/.config/nvim 2>/dev/null || true
+git clone --quiet https://github.com/LazyVim/starter ~/.config/nvim
 rm -rf ~/.config/nvim/.git
 
-echo ""
+echo
 echo "=================================================="
-echo "Installation completed successfully!"
+echo "          INSTALLATION COMPLETED SUCCESSFULLY!"
+echo "=================================================="
 echo "Ghostty Theme : $theme"
-if [[ "$starship_preset" != "none" ]]; then
-  echo "Starship      : Installed ($starship_preset)"
+if [[ "$install_starship" =~ ^[Yy]$ ]]; then
+    echo "Starship      : Installed"
 else
-  echo "Starship      : Skipped"
+    echo "Starship      : Skipped"
 fi
+echo "Shell         : $SHELL_TYPE"
+echo "Neovim + LazyVim : Installed"
 echo "=================================================="
-echo ""
+echo
 echo "Next steps:"
-echo "1. Restart Ghostty"
-echo "2. Run: source ~/.zshrc"
-echo "3. Open Neovim: nvim"
-echo "4. Inside Neovim run: :Lazy sync"
-echo ""
-echo "Enjoy your new setup!"
+echo "1. Close Ghostty completely (Command + Q) and reopen it"
+echo "2. Run: source $RC_FILE"
+echo "3. Test: ls"
+echo "4. Open Neovim: nvim → then run :Lazy sync"
+echo
+echo "Enjoy your setup! ✨"
