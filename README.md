@@ -17,7 +17,6 @@
 - [Supported Platforms](#supported-platforms)
 - [What the Script Does](#what-the-script-does)
 - [Aliases](#aliases)
-- [Python Workflow](#python-linting--formatting)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
@@ -32,13 +31,8 @@ configure a prompt, wire up aliases, get Neovim ready, connect a linter.
 terminal_tweaker automates that sequence into a single script with sane defaults and
 interactive overrides.
 
-It does two things well:
-
-1. **Terminal stack** — installs and configures Ghostty, Starship, eza, Neovim, LazyVim,
-   and JetBrainsMono Nerd Font.
-2. **Python workflow** — configures Ruff as the sole linting and formatting engine inside
-   Neovim, replacing Flake8, Black, and isort with one Rust binary.
-
+It installs and configures Ghostty, Starship, eza, Neovim + LazyVim and the
+JetBrainsMono Nerd Font — on macOS and on almost any Linux distribution.
 Everything is idempotent and safe to re-run.
 
 ---
@@ -47,79 +41,74 @@ Everything is idempotent and safe to re-run.
 
 | Feature | Detail |
 |---|---|
-| **Single file** | Everything in one `terminal_setup.sh` — no dependencies, no installer |
-| **Automatic OS detection** | macOS (arm64/x86_64) and twelve Linux distro families |
-| **Interactive setup** | Choose your theme, prompt preset, and shell |
-| **Dry-run mode** | Preview every change before it happens: `--dry-run` |
-| **Idempotent** | Re-running never duplicates aliases or config blocks |
+| **One command** | `./install.sh`, or `curl … \| bash` without cloning |
+| **Runs almost anywhere** | Detects the package manager, not the distro name — derivatives work automatically |
+| **No stale Neovim** | Installs a Neovim recent enough for LazyVim even on Debian/Ubuntu LTS |
+| **Interactive or unattended** | Pick theme, prompt and shell — or `--yes` for defaults |
+| **Pick your steps** | `--only neovim`, `--skip ghostty,font` |
+| **Dry-run mode** | Preview every change: `--dry-run` |
+| **Idempotent** | Shell config lives in one managed block that is rewritten, never duplicated |
 | **Safe backups** | Existing configs are copied to `~/.config_backups/` before being replaced |
-| **Spinner feedback** | Progress indicator on every long-running install step |
-| **Non-interactive mode** | `--force` accepts all defaults for scripted use |
+| **Debuggable** | Command output goes to a log file; failures show its last lines |
 
 ---
 
 ## Architecture
 
-```
-Ghostty
-  ↓
-Shell (zsh / bash)
-  ↓
-Starship prompt
-  ↓
-eza  (ls / ll / lt / la aliases)
-  ↓
-Neovim + LazyVim
-  ↓
-Ruff  (lint + format on save)
-```
+### Stack
 
-### Component overview
+```
+Ghostty → zsh / bash → Starship → eza → Neovim + LazyVim
+```
 
 | Component | Role |
 |---|---|
-| **[Ghostty](https://ghostty.org/)** | GPU-accelerated terminal. Metal on macOS, OpenGL on Linux. Single binary, built-in tabs and splits. |
-| **[Starship](https://starship.rs/)** | Cross-shell prompt. Reads git state, language runtimes, and exit codes. Written in Rust. |
-| **[eza](https://eza.rocks/)** | Modern `ls` replacement with icons, git status, and tree view. |
-| **[Neovim](https://neovim.io/)** | Hyperextensible editor configured via LazyVim for zero-friction startup. |
-| **[LazyVim](https://www.lazyvim.org/)** | Neovim distribution with lazy-loading, LSP, and a curated plugin set. |
-| **[Ruff](https://astral.sh/ruff)** | Python linter and formatter written in Rust. Replaces Flake8, Black, isort, and pyupgrade. |
+| **[Ghostty](https://ghostty.org/)** | GPU-accelerated terminal with built-in tabs and splits. |
+| **[Starship](https://starship.rs/)** | Cross-shell prompt showing git state, runtimes and exit codes. |
+| **[eza](https://eza.rocks/)** | Modern `ls` replacement with icons, git status and tree view. |
+| **[Neovim](https://neovim.io/)** + **[LazyVim](https://www.lazyvim.org/)** | Editor with a curated, lazy-loaded plugin set and LSP. |
+
+### Code layout
+
+```
+install.sh           entrypoint: flags, step selection, summary
+lib/
+  core.sh            logging, spinner, prompts, backups, downloads
+  platform.sh        OS / arch / distro / libc / package-manager detection
+  pkg.sh             one pkg_install for apt, dnf, yum, pacman, zypper, apk, xbps, brew
+modules/             one file per tool, each exposing step_<name>
+  packages.sh        base packages (curl, git, unzip, zsh, compiler, …)
+  font.sh  ghostty.sh  starship.sh  eza.sh  neovim.sh  shell.sh
+tests/
+  docker-test.sh     runs the installer inside any distro container
+```
+
+Modules never call `apt`/`dnf`/… directly — they ask `pkg_install` for a generic
+name and `lib/pkg.sh` maps it (e.g. `build-tools` → `build-essential` / `base-devel` /
+`build-base`). Supporting a new distro family means adding a few lines there.
+
+Steps run in order: `packages font ghostty starship eza neovim shell`.
+
+### Install strategy per tool
+
+| Tool | macOS | Linux |
+|---|---|---|
+| Starship | Homebrew | Official installer → `~/.local/bin` (static binary, no root) |
+| eza | Homebrew | Native package, else upstream binary → `~/.local/bin` |
+| Neovim | Homebrew | Official release → `~/.local/opt` on glibc; native package on musl |
+| Font | Homebrew cask | Nerd Fonts release → `~/.local/share/fonts` |
+| Ghostty | Homebrew cask | Native package → Fedora COPR / Ubuntu-Debian `.deb` → snap → manual hint |
 
 ---
 
 ## Prerequisites
 
-> **Ghostty must be installed before running `terminal_setup.sh`.** The script
-> configures Ghostty but does not install it.
+- `bash` (3.2+ — the macOS default is fine; Alpine: `apk add bash`)
+- `curl` or `wget`
+- macOS: [Homebrew](https://brew.sh)
+- Linux: a user with `sudo` or `doas` (or run as root, e.g. in a container)
 
-### Install Ghostty on macOS
-
-```bash
-brew install --cask ghostty
-```
-
-### Install Ghostty on Linux (Debian / Ubuntu)
-
-```bash
-sudo mkdir -p /etc/apt/keyrings
-
-curl -fsSL https://apt.ghostty.org/gpg.key \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/ghostty.gpg
-
-echo "deb [signed-by=/etc/apt/keyrings/ghostty.gpg] \
-  https://apt.ghostty.org/apt stable main" \
-  | sudo tee /etc/apt/sources.list.d/ghostty.list
-
-sudo apt update && sudo apt install ghostty
-```
-
-### Install Ghostty on Arch Linux
-
-```bash
-sudo pacman -S ghostty
-```
-
-Other distributions: [ghostty.org/download](https://ghostty.org/download).
+Ghostty is installed for you where possible — see [Supported Platforms](#supported-platforms).
 
 ---
 
@@ -128,54 +117,57 @@ Other distributions: [ghostty.org/download](https://ghostty.org/download).
 ```bash
 git clone https://github.com/dzm1337/terminal_tweaker.git
 cd terminal_tweaker
-
-# 1. Terminal stack
-./terminal_setup.sh
-
-# 2. Reload your shell
-source ~/.zshrc   # or source ~/.bashrc
-
-# 3. Python workflow (optional)
-./setup_ruff_fix.sh
-
-# 4. Sync Neovim plugins
-nvim   # then :Lazy sync
+./install.sh
 ```
+
+Or without cloning:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dzm1337/terminal_tweaker/main/install.sh | bash
+```
+
+Then restart your terminal and open `nvim` — LazyVim installs its plugins on first launch.
 
 ### Options
 
 | Flag | Effect |
 |---|---|
-| `--dry-run` | Print every action without making changes |
-| `--force` | Skip all prompts, use defaults |
-| `--verbose` | Print each command before it runs |
-| `--help` | Show usage |
+| `-n`, `--dry-run` | Print every action without making changes |
+| `-y`, `--yes`, `--force` | Skip all prompts, use defaults |
+| `-v`, `--verbose` | Stream command output instead of a spinner |
+| `--only a,b` | Run only these steps |
+| `--skip a,b` | Skip these steps |
+| `-h`, `--help` | Show usage |
 
 ```bash
-./terminal_setup.sh --dry-run
-./terminal_setup.sh --force
-./terminal_setup.sh --verbose
-DRY_RUN=true ./terminal_setup.sh
+./install.sh --dry-run
+./install.sh --yes --skip ghostty,font   # headless server, container, WSL
+./install.sh --only neovim               # just upgrade Neovim + LazyVim
 ```
 
 ---
 
 ## Supported Platforms
 
-| Platform | Package manager | eza source |
-|---|---|---|
-| macOS 13+ (Apple Silicon) | Homebrew | brew |
-| macOS 13+ (Intel) | Homebrew | brew |
-| Ubuntu 20.04+ | apt | eza apt repo |
-| Debian 11+ | apt | eza apt repo |
-| Linux Mint | apt | eza apt repo |
-| Pop!\_OS | apt | eza apt repo |
-| **Arch Linux** | **pacman** | **pacman (official repos)** |
-| Manjaro | pacman | pacman |
-| EndeavourOS | pacman | pacman |
-| Fedora 38+ | dnf | dnf / cargo fallback |
-| RHEL 9 / Rocky / AlmaLinux | dnf + EPEL | cargo fallback |
-| openSUSE Leap / Tumbleweed | zypper | cargo fallback |
+Detection is based on the package manager that is present, so derivatives of these
+families (Mint, Pop!\_OS, Zorin, elementary, Kali, Manjaro, EndeavourOS, CachyOS,
+Artix, Nobara, AlmaLinux, …) are covered too.
+
+| Family | Package manager | Tested in CI | Ghostty |
+|---|---|---|---|
+| macOS 13+ (Apple Silicon / Intel) | brew | ✓ | Homebrew cask |
+| Ubuntu 22.04, 24.04+ | apt | ✓ | `.deb` (24.04+) or snap |
+| Debian 12, 13+ | apt | ✓ | `.deb` (13+) or snap |
+| Fedora | dnf | ✓ | COPR `scottames/ghostty` |
+| RHEL / Rocky / Alma 9 | dnf | ✓ | snap or manual |
+| Arch | pacman | ✓ | official repo |
+| openSUSE Tumbleweed / Leap | zypper | ✓ | official repo (Tumbleweed) |
+| Alpine | apk | ✓ | community repo |
+| Void | xbps | ✓ | official repo |
+| WSL | any of the above | — | skipped (font goes on Windows) |
+
+Unknown package manager? The script still installs the user-space tools (Starship,
+eza, Neovim) and tells you which packages to install yourself.
 
 ---
 
@@ -183,17 +175,17 @@ DRY_RUN=true ./terminal_setup.sh
 
 | Step | Action |
 |---|---|
-| Detect OS and arch | Selects the correct install path automatically |
-| Install packages | Starship, eza, Neovim, git, build tools via native package manager |
-| Install font | JetBrainsMono Nerd Font v3.2.1 |
-| Configure Ghostty | Writes `~/.config/ghostty/config` with chosen theme |
-| Configure Starship | Applies chosen preset to `~/.config/starship.toml` |
-| Configure shell | Injects Starship init and eza aliases into `.zshrc` or `.bashrc` |
-| Install LazyVim | Clones the LazyVim starter into `~/.config/nvim` |
+| `packages` | curl, git, unzip, tar, zsh, fontconfig, C compiler via the native package manager |
+| `font` | JetBrainsMono Nerd Font |
+| `ghostty` | Installs Ghostty, writes `~/.config/ghostty/config` with your theme |
+| `starship` | Installs Starship, applies your preset to `~/.config/starship.toml` |
+| `eza` | Installs eza |
+| `neovim` | Installs Neovim ≥ 0.11.2, clones the LazyVim starter into `~/.config/nvim` |
+| `shell` | Writes the managed block (PATH, Starship init, eza aliases) into `.zshrc`/`.bashrc`, offers `chsh` |
 
 ### Interactive prompts
 
-**Shell preference**
+**Shell** — defaults to your current login shell
 ```
 1. Zsh
 2. Bash
@@ -223,7 +215,15 @@ DRY_RUN=true ./terminal_setup.sh
 
 ## Aliases
 
-Added to your shell rc file automatically.
+Added to your shell rc file inside a marked block:
+
+```bash
+# >>> terminal_tweaker >>>
+...
+# <<< terminal_tweaker <<<
+```
+
+Delete the block to undo; re-running the installer rewrites it.
 
 | Alias | Command | Description |
 |---|---|---|
@@ -234,80 +234,43 @@ Added to your shell rc file automatically.
 
 ---
 
-## Python Linting & Formatting
-
-> Script: `setup_ruff_fix.sh`
-
-Configures Neovim (LazyVim) to use Ruff as the sole Python engine.
-
-**Why Ruff only?** Ruff replaces Flake8, isort, pyupgrade, and Black in a single binary
-written in Rust — typically 10–100× faster than the tools it replaces.
-
-| Trigger | Action |
-|---|---|
-| `Ctrl + S` | Save → Ruff fix → Ruff format (async, non-blocking) |
-| Ruff fix | Removes unused imports, corrects common syntax issues |
-| Ruff format | Enforces 79-character line width |
-
-Global config written to `~/.config/ruff/ruff.toml`:
-
-```toml
-line-length = 79
-target-version = "py312"
-
-[lint]
-select = [
-  "F",   # Pyflakes
-  "E",   # Pycodestyle errors
-  "W",   # Pycodestyle warnings
-  "I",   # isort
-  "UP",  # pyupgrade
-]
-```
-
----
-
 ## Troubleshooting
 
-### Ghostty not found
+### A step failed
 
-`terminal_setup.sh` configures Ghostty but does not install it. Install it first:
-- macOS: `brew install --cask ghostty`
-- Arch: `sudo pacman -S ghostty`
-- Others: [ghostty.org/download](https://ghostty.org/download)
-
-### Starship not appearing after install
+Every command's output is in the log file printed at startup
+(default `$TMPDIR/terminal_tweaker.log`). Re-run just that step:
 
 ```bash
-source ~/.zshrc   # or ~/.bashrc
-grep "starship init" ~/.zshrc
+./install.sh --only eza --verbose
 ```
 
-### Neovim plugins not loading
+### Ghostty could not be installed
 
-Open Neovim and run `:Lazy sync`. If Mason shows errors, run `:MasonUpdate`.
-
-### Ruff not running on save
+Some distros have no package yet. Install it manually from
+[ghostty.org/docs/install/binary](https://ghostty.org/docs/install/binary), then:
 
 ```bash
-ruff --version
-ls ~/.config/nvim/lua/plugins/ruff.lua
+./install.sh --only ghostty   # writes the config
 ```
 
-If the plugin file is missing, re-run `./setup_ruff_fix.sh`.
+### `nvim` is still the old version
+
+`~/.local/bin` must come before `/usr/bin` in `PATH`. The managed shell block does this —
+restart your terminal, then check `command -v nvim`.
+
+### Starship / aliases not active
+
+```bash
+exec $SHELL
+grep -A3 'terminal_tweaker >>>' ~/.zshrc
+```
 
 ### Font glyphs not rendering
 
 ```bash
 grep font-family ~/.config/ghostty/config
-fc-cache -fv   # Linux only — rebuild font cache
-```
-
-### eza aliases not active
-
-```bash
-source ~/.zshrc
-eza --version
+fc-cache -f   # Linux only — rebuild font cache
 ```
 
 ---
@@ -315,20 +278,22 @@ eza --version
 ## Roadmap
 
 - Fish shell support
+- Python workflow module (Ruff in LazyVim)
 - tmux configuration module
 - WezTerm as an alternative to Ghostty
-- Docker development environment
-- Python project template generator (Ruff + pyproject.toml)
 
 ---
 
 ## Contributing
 
-One concern per PR. ShellCheck must pass. Update `CHANGELOG.md` under `[Unreleased]`.
+One concern per PR. ShellCheck must pass and the scripts must stay bash 3.2 compatible
+(macOS). To add a tool, create `modules/<tool>.sh` with a `step_<tool>` function and add
+it to `ALL_STEPS` in `install.sh`.
 
 ```bash
-shellcheck terminal_setup.sh
-./terminal_setup.sh --dry-run
+shellcheck -x install.sh lib/*.sh modules/*.sh tests/*.sh
+./install.sh --dry-run
+tests/docker-test.sh ubuntu:22.04     # any image from the CI matrix
 ```
 
 ---
@@ -338,7 +303,6 @@ shellcheck terminal_setup.sh
 - [Ghostty](https://ghostty.org/)
 - [Starship](https://starship.rs/)
 - [eza](https://eza.rocks/)
-- [Ruff](https://astral.sh/ruff)
 - [LazyVim](https://www.lazyvim.org/)
 - [Neovim](https://neovim.io/)
 - [Nerd Fonts](https://www.nerdfonts.com/)
@@ -349,5 +313,4 @@ shellcheck terminal_setup.sh
 
 - [Starship](https://starship.rs/) for the preset system
 - [LazyVim](https://www.lazyvim.org/) for the Neovim starter template
-- [Astral](https://astral.sh/) for Ruff
 - [eza community](https://github.com/eza-community/eza) for maintaining the fork

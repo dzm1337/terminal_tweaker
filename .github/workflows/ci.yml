@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck -x install.sh lib/*.sh modules/*.sh tests/*.sh
+
+  linux:
+    name: ${{ matrix.image }}
+    needs: shellcheck
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:22.04
+          - ubuntu:24.04
+          - debian:12
+          - debian:13
+          - fedora:latest
+          - rockylinux/rockylinux:9
+          - archlinux:latest
+          - opensuse/tumbleweed
+          - opensuse/leap:16.0
+          - alpine:latest
+          - ghcr.io/void-linux/void-glibc-full:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install in container
+        run: tests/docker-test.sh "${{ matrix.image }}"
+
+  macos:
+    needs: shellcheck
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dry run with system bash 3.2
+        run: /bin/bash ./install.sh --dry-run --yes
+      - name: Install (no GUI apps)
+        run: /bin/bash ./install.sh --yes --skip ghostty,font
